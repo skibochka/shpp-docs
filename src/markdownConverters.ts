@@ -1,4 +1,7 @@
-function createMarkdownLink(link: string, linkName: string): string {
+function createMarkdownLink(
+  link: string,
+  linkName: string | null | undefined,
+): string {
   if (linkName) {
     return `[${linkName}](${link})`;
   }

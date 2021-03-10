@@ -1,97 +1,182 @@
 import { Doc } from './interfaces';
 import { DocText } from './interfaces';
 import { DocTable } from './interfaces';
-import { GoogleTable } from './interfaces/ googleDocsInterfaces/IGoogleTable';
-import { GoogleTableRow } from './interfaces/ googleDocsInterfaces/IGoogleTableRow';
-import { GoogleTableCell } from './interfaces/ googleDocsInterfaces/IGoogleTableCell';
-import { GoogleCellContent } from './interfaces/ googleDocsInterfaces/IGoogleCellContent';
-import { GoogleCellElement } from './interfaces/ googleDocsInterfaces/IGoogleCellElement';
 import MarkdownConverters from './markdownConverters';
 import { docs_v1 as GoogleDocsTypes } from 'googleapis';
 
 function buildParagraph(
-  content: GoogleCellContent,
-  googleDocument: any,
-): DocText {
-  const text: string[] = content.paragraph.elements.map(
-    (element: GoogleCellElement): string => {
-      if (element.inlineObjectElement) {
-        const { inlineObjectId } = element.inlineObjectElement;
-        const inlineObject =
-          googleDocument.inlineObjects[inlineObjectId].inlineObjectProperties
-            .embeddedObject;
+  paragraph: GoogleDocsTypes.Schema$Paragraph,
+  googleDocument: GoogleDocsTypes.Schema$Document,
+): string {
+  if (paragraph && paragraph.elements) {
+    const text: string[] = paragraph.elements.map(
+      (element: GoogleDocsTypes.Schema$ParagraphElement): string => {
+        if (
+          element.inlineObjectElement &&
+          element.inlineObjectElement.inlineObjectId
+        ) {
+          const { inlineObjectId } = element.inlineObjectElement;
+          if (
+            googleDocument.inlineObjects &&
+            googleDocument.inlineObjects[inlineObjectId]
+          ) {
+            const inlineObject = googleDocument.inlineObjects[inlineObjectId];
+            if (
+              inlineObject.inlineObjectProperties &&
+              inlineObject.inlineObjectProperties.embeddedObject &&
+              inlineObject.inlineObjectProperties.embeddedObject
+                .imageProperties &&
+              inlineObject.inlineObjectProperties.embeddedObject.imageProperties
+                .contentUri
+            ) {
+              return MarkdownConverters.createMarkdownImage(
+                inlineObject.inlineObjectProperties.embeddedObject
+                  .imageProperties.contentUri,
+              );
+            }
+          }
+        }
+        if (element.textRun) {
+          let temporaryContentStorage = element.textRun.content;
 
-        return MarkdownConverters.createMarkdownImage(
-          inlineObject.imageProperties.contentUri,
-        );
-      }
+          if (
+            element.textRun.textStyle &&
+            element.textRun.textStyle.link &&
+            element.textRun.textStyle.link.url
+          ) {
+            temporaryContentStorage = MarkdownConverters.createMarkdownLink(
+              element.textRun.textStyle.link.url,
+              element.textRun.content,
+            );
+          }
 
-      let temporaryContentStorage = element.textRun.content;
+          if (
+            element.textRun.textStyle &&
+            element.textRun.textStyle.bold &&
+            element.textRun.content
+          ) {
+            temporaryContentStorage = MarkdownConverters.markdownBold(
+              element.textRun.content,
+            );
+          }
 
-      if (element.textRun.textStyle.link) {
-        temporaryContentStorage = MarkdownConverters.createMarkdownLink(
-          element.textRun.textStyle.link.url,
-          temporaryContentStorage,
-        );
-      }
+          if (
+            element.textRun.textStyle &&
+            element.textRun.textStyle.italic &&
+            element.textRun.content
+          ) {
+            temporaryContentStorage = MarkdownConverters.markdownItalic(
+              element.textRun.content,
+            );
+          }
+          if (temporaryContentStorage) {
+            return temporaryContentStorage;
+          }
+          return '';
+        }
+        return '';
+      },
+    );
+    return text.join('');
+  }
+  return '';
+}
 
-      if (element.textRun.textStyle.bold) {
-        temporaryContentStorage = MarkdownConverters.markdownBold(
-          temporaryContentStorage,
-        );
-      }
-
-      if (element.textRun.textStyle.italic) {
-        temporaryContentStorage = MarkdownConverters.markdownItalic(
-          temporaryContentStorage,
-        );
-      }
-      return temporaryContentStorage;
-    },
-  );
-
+function buildContent(
+  content: GoogleDocsTypes.Schema$StructuralElement,
+  googleDocument: GoogleDocsTypes.Schema$Document,
+): DocText | DocTable {
+  if (content.paragraph) {
+    return {
+      type: 'text',
+      text: buildParagraph(content.paragraph, googleDocument),
+    };
+  }
+  if (content.table) {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    return buildTable(content.table, googleDocument);
+  }
   return {
     type: 'text',
-    text: text.join(''),
+    text: '',
   };
 }
 
-function buildCell(googleTableCell: GoogleTableCell, googleDocument: any): Doc {
-  return {
-    document: googleTableCell.content.map((content: GoogleCellContent) => {
-      return buildParagraph(content, googleDocument);
-    }),
-  };
-}
-
-function buildRow(googleTableRow: GoogleTableRow, googleDocument: any): Doc[] {
-  return googleTableRow.tableCells.map((googleTableCell: GoogleTableCell) =>
-    buildCell(googleTableCell, googleDocument),
-  );
-}
-
-function buildTable(googleTable: GoogleTable, googleDocument: any): DocTable {
-  return {
-    type: 'table',
-    table: googleTable.tableRows.map((googleTableRow: GoogleTableRow) =>
-      buildRow(googleTableRow, googleDocument),
-    ),
-  };
-}
-
-export function buildDocument(googleDocument: any): Doc {
+function buildCell(
+  googleTableCell: GoogleDocsTypes.Schema$TableCell,
+  googleDocument: GoogleDocsTypes.Schema$Document,
+): Doc {
   const document: Doc = { document: [] };
+  if (googleTableCell.content) {
+    const text: string[] = [];
+    googleTableCell.content.forEach(
+      (content: GoogleDocsTypes.Schema$StructuralElement) => {
+        const cellContent = buildContent(content, googleDocument);
+        if (cellContent.type === 'text') {
+          return text.push(cellContent.text);
+        }
+        return document.document.push(cellContent);
+      },
+    );
+    document.document.push({
+      type: 'text',
+      text: text.join(''),
+    });
+    return document;
+  }
+  return document;
+}
 
-  googleDocument.body.content.forEach((content: any) => {
-    if (content.paragraph) {
-      const text: DocText = buildParagraph(content, googleDocument);
-      document.document.push(text);
-    }
+function buildRow(
+  googleTableRow: GoogleDocsTypes.Schema$TableRow,
+  googleDocument: GoogleDocsTypes.Schema$Document,
+): Doc[] {
+  if (googleTableRow.tableCells) {
+    return googleTableRow.tableCells.map(
+      (googleTableCell: GoogleDocsTypes.Schema$TableCell) =>
+        buildCell(googleTableCell, googleDocument),
+    );
+  }
+  return [];
+}
 
-    if (content.table) {
-      const table: DocTable = buildTable(content.table, googleDocument);
-      document.document.push(table);
-    }
-  });
+function buildTable(
+  googleTable: GoogleDocsTypes.Schema$Table,
+  googleDocument: GoogleDocsTypes.Schema$Document,
+): DocTable {
+  if (googleTable.tableRows) {
+    return {
+      type: 'table',
+      table: googleTable.tableRows.map(
+        (googleTableRow: GoogleDocsTypes.Schema$TableRow) =>
+          buildRow(googleTableRow, googleDocument),
+      ),
+    };
+  }
+  return { type: 'table', table: [] };
+}
+
+export function buildDocument(
+  googleDocument: GoogleDocsTypes.Schema$Document,
+): Doc {
+  const document: Doc = { document: [] };
+  if (googleDocument.body && googleDocument.body.content) {
+    googleDocument.body.content.forEach(
+      (content: GoogleDocsTypes.Schema$StructuralElement) => {
+        if (content.paragraph) {
+          const text: DocText = {
+            type: 'text',
+            text: buildParagraph(content.paragraph, googleDocument),
+          };
+          document.document.push(text);
+        }
+
+        if (content.table) {
+          const table: DocTable = buildTable(content.table, googleDocument);
+          document.document.push(table);
+        }
+      },
+    );
+  }
   return document;
 }

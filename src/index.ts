@@ -12,9 +12,13 @@ function convertGoogleDocToMarkdown(path: string): Doc | null {
     );
     return buildDocument(googleDocument);
   } catch (error) {
-    console.log('Some troubles with file');
     return null;
   }
 }
 
-console.log(convertGoogleDocToMarkdown('googleDoc.json'));
+const file = JSON.stringify(
+  convertGoogleDocToMarkdown('googleDoc.json'),
+  null,
+  2,
+);
+fs.writeFileSync('convertedDoc', file);
