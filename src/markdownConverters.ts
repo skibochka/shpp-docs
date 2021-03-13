@@ -21,13 +21,8 @@ function markdownItalic(content: string): string {
 }
 
 function heading(content: string, headingLevel: number): string | null {
-  if (headingLevel < 6) {
-    const headingContent = [];
-    for (let i = 0; i < headingLevel; i += 1) {
-      headingContent.push('#');
-    }
-    headingContent.push(` ${content}`);
-    return headingContent.join('');
+  if (headingLevel > 0 && headingLevel < 7) {
+    return `${'#'.repeat(headingLevel)} ${content}`;
   }
   return null;
 }

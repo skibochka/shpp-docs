@@ -11,23 +11,13 @@ function buildParagraph(
   if (paragraph && paragraph.elements) {
     const text: string[] = paragraph.elements.map(
       (element: GoogleDocsTypes.Schema$ParagraphElement): string => {
-        if (
-          element.inlineObjectElement &&
-          element.inlineObjectElement.inlineObjectId
-        ) {
+        if (element.inlineObjectElement?.inlineObjectId) {
           const { inlineObjectId } = element.inlineObjectElement;
-          if (
-            googleDocument.inlineObjects &&
-            googleDocument.inlineObjects[inlineObjectId]
-          ) {
+          if (googleDocument.inlineObjects?.[inlineObjectId]) {
             const inlineObject = googleDocument.inlineObjects[inlineObjectId];
             if (
-              inlineObject.inlineObjectProperties &&
-              inlineObject.inlineObjectProperties.embeddedObject &&
-              inlineObject.inlineObjectProperties.embeddedObject
-                .imageProperties &&
-              inlineObject.inlineObjectProperties.embeddedObject.imageProperties
-                .contentUri
+              inlineObject.inlineObjectProperties?.embeddedObject
+                ?.imageProperties?.contentUri
             ) {
               return MarkdownConverters.createMarkdownImage(
                 inlineObject.inlineObjectProperties.embeddedObject
@@ -39,32 +29,20 @@ function buildParagraph(
         if (element.textRun) {
           let temporaryContentStorage = element.textRun.content;
 
-          if (
-            element.textRun.textStyle &&
-            element.textRun.textStyle.link &&
-            element.textRun.textStyle.link.url
-          ) {
+          if (element.textRun.textStyle?.link?.url) {
             temporaryContentStorage = MarkdownConverters.createMarkdownLink(
               element.textRun.textStyle.link.url,
               element.textRun.content,
             );
           }
 
-          if (
-            element.textRun.textStyle &&
-            element.textRun.textStyle.bold &&
-            element.textRun.content
-          ) {
+          if (element.textRun.textStyle?.bold && element.textRun.content) {
             temporaryContentStorage = MarkdownConverters.markdownBold(
               element.textRun.content,
             );
           }
 
-          if (
-            element.textRun.textStyle &&
-            element.textRun.textStyle.italic &&
-            element.textRun.content
-          ) {
+          if (element.textRun.textStyle?.italic && element.textRun.content) {
             temporaryContentStorage = MarkdownConverters.markdownItalic(
               element.textRun.content,
             );
