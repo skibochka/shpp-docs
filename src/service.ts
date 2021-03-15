@@ -8,56 +8,53 @@ function buildParagraph(
   paragraph: GoogleDocsTypes.Schema$Paragraph,
   googleDocument: GoogleDocsTypes.Schema$Document,
 ): string {
-  if (paragraph && paragraph.elements) {
-    const text: string[] = paragraph.elements.map(
-      (element: GoogleDocsTypes.Schema$ParagraphElement): string => {
-        if (element.inlineObjectElement?.inlineObjectId) {
-          const { inlineObjectId } = element.inlineObjectElement;
-          if (googleDocument.inlineObjects?.[inlineObjectId]) {
-            const inlineObject = googleDocument.inlineObjects[inlineObjectId];
-            if (
-              inlineObject.inlineObjectProperties?.embeddedObject
-                ?.imageProperties?.contentUri
-            ) {
-              return MarkdownConverters.createMarkdownImage(
-                inlineObject.inlineObjectProperties.embeddedObject
-                  .imageProperties.contentUri,
-              );
-            }
+  if (!paragraph.elements) return '';
+  const text: string[] = paragraph.elements.map(
+    (element: GoogleDocsTypes.Schema$ParagraphElement): string => {
+      if (element.inlineObjectElement?.inlineObjectId) {
+        const { inlineObjectId } = element.inlineObjectElement;
+
+        if (googleDocument.inlineObjects?.[inlineObjectId]) {
+          const inlineObject = googleDocument.inlineObjects[inlineObjectId];
+          if (
+            inlineObject.inlineObjectProperties?.embeddedObject?.imageProperties
+              ?.contentUri
+          ) {
+            return MarkdownConverters.createMarkdownImage(
+              inlineObject.inlineObjectProperties.embeddedObject.imageProperties
+                .contentUri,
+            );
           }
         }
-        if (element.textRun) {
-          let temporaryContentStorage = element.textRun.content;
+      }
+      if (!element.textRun) return '';
 
-          if (element.textRun.textStyle?.link?.url) {
-            temporaryContentStorage = MarkdownConverters.createMarkdownLink(
-              element.textRun.textStyle.link.url,
-              element.textRun.content,
-            );
-          }
+      let temporaryContentStorage = element.textRun.content;
 
-          if (element.textRun.textStyle?.bold && element.textRun.content) {
-            temporaryContentStorage = MarkdownConverters.markdownBold(
-              element.textRun.content,
-            );
-          }
+      if (element.textRun.textStyle?.link?.url) {
+        temporaryContentStorage = MarkdownConverters.createMarkdownLink(
+          element.textRun.textStyle.link.url,
+          element.textRun.content,
+        );
+      }
 
-          if (element.textRun.textStyle?.italic && element.textRun.content) {
-            temporaryContentStorage = MarkdownConverters.markdownItalic(
-              element.textRun.content,
-            );
-          }
-          if (temporaryContentStorage) {
-            return temporaryContentStorage;
-          }
-          return '';
-        }
-        return '';
-      },
-    );
-    return text.join('');
-  }
-  return '';
+      if (element.textRun.textStyle?.bold && element.textRun.content) {
+        temporaryContentStorage = MarkdownConverters.markdownBold(
+          element.textRun.content,
+        );
+      }
+
+      if (element.textRun.textStyle?.italic && element.textRun.content) {
+        temporaryContentStorage = MarkdownConverters.markdownItalic(
+          element.textRun.content,
+        );
+      }
+      if (!temporaryContentStorage) return '';
+
+      return temporaryContentStorage;
+    },
+  );
+  return text.join('');
 }
 
 function buildContent(
